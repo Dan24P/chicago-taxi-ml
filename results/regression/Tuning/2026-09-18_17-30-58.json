@@ -1,0 +1,18 @@
+{
+  "base_company": {},
+  "random_forest": {
+    "train_length": 71384,
+    "feature_set": "base_company",
+    "id": "2026-09-18_17-30-58",
+    "CV_Folds": 5,
+    "best_index": 6,
+    "best_params": {
+      "model__n_estimators": 30,
+      "model__min_samples_leaf": 10,
+      "model__max_features": 0.75,
+      "model__max_depth": 20
+    },
+    "best_CV_MAE": 4.331733875813933,
+    "best_CV_MAE_std": 0.13359144762351924
+  }
+}

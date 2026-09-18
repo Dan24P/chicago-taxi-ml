@@ -1,0 +1,20 @@
+{
+  "base_weekday_company": {
+    "random_forest": {
+      "train_length": 71452,
+      "test_length": 17863,
+      "feature_set": "base_weekday_company",
+      "id": "2026-09-14_18-41-02",
+      "CV_Folds": 30,
+      "best_index": 6,
+      "best_params": {
+        "model__n_estimators": 30,
+        "model__min_samples_leaf": 10,
+        "model__max_features": 0.75,
+        "model__max_depth": 20
+      },
+      "best_CV_MAE": 4.285953137879206,
+      "best_CV_MAE_std": 0.39512156520467806
+    }
+  }
+}

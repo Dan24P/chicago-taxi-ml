@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taxi-ml"
+version = "0.1.0"
+description = "Chicago taxi machine learning project"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    "pandas",
+    "numpy",
+    "duckdb",
+    "scikit-learn",
+    "joblib",
+    "matplotlib",
+    "pyarrow"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,14 @@
+{
+  "train_length": 71452,
+  "id": "2026-09-14_12-22-46",
+  "CV_Folds": 5,
+  "best_index": 5,
+  "best_params": {
+    "model__n_estimators": 50,
+    "model__min_samples_leaf": 1,
+    "model__max_features": 1.0,
+    "model__max_depth": 10
+  },
+  "best_CV_MAE": 4.283435123871672,
+  "best_CV_MAE_std": 0.11453671177303945
+}
