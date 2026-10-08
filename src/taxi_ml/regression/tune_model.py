@@ -16,7 +16,7 @@ from datetime import datetime
 
 from taxi_ml.common.preprocessing import build_preprocessor
 from taxi_ml.common.config import feature_set
-from models import models
+from taxi_ml.regression.models import models
 
 
 
@@ -43,7 +43,7 @@ y_train = pd.read_parquet("data/regression/y_train.parquet")["trip_total"]
 metrics = {}
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-set_name = "base_company"
+set_name = "base_weekday_company"
 features = feature_set[set_name]
 preprocessor = build_preprocessor(features["numeric"],features["cat"]  )
 
@@ -66,7 +66,7 @@ search = RandomizedSearchCV(estimator=pipeline, param_distributions=param_grid, 
         
 
 search.fit(X_train, y_train)
-joblib.dump(search.best_estimator_,"models/"+name+"_"+set_name+"_bestEst.joblib")
+joblib.dump(search.best_estimator_,"models/regression/"+name+"_"+set_name+"_bestEst.joblib")
 bestParams = search.best_params_
 bestScore = -search.best_score_
 bestEstimator = search.best_estimator_

@@ -1,4 +1,5 @@
 duckdb
 pandas
-matplotlib
-numpy
+scikit-learn
+joblib
+pyarrow

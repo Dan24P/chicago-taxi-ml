@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import pandas as pd 
 import json 
-from sklearn.metrics import accuracy_score,precision_score,recall_score,f1_score,roc_auc_score,average_precision_score,confusion_matrix
+from sklearn.metrics import accuracy_score,precision_score,recall_score,f1_score,roc_auc_score,average_precision_score,confusion_matrix,roc_curve
 
 def ThresholdScan(y_prob,threshold):
     result = y_prob >= threshold
@@ -29,7 +29,7 @@ scoring_metrics = {
     "recall":recall_score,
     "f1":f1_score}
 
-model = joblib.load("models/gradient_boosting_base_company_bestEst.joblib")
+model = joblib.load("models/classification/gradient_boosting_base_company_bestEst.joblib")
 
 y_test = pd.read_parquet("data/classification/y_test.parquet")["high_fare"]
 
@@ -42,9 +42,6 @@ y_pred = model.predict(X_test)
 
 y_prob = model.predict_proba(X_test)[:,1]
 
-
-#MAE_val = mean_absolute_error(y_test, y_pred_rf)
-#R2_val = r2_score(y_test, y_pred_rf)
 
 acc_val =      accuracy_score(y_test,y_pred)
 pre_val =      precision_score(y_test,y_pred)
@@ -127,4 +124,20 @@ for axis,event in zip(axes,events):
 fig.tight_layout()
 
 plt.savefig("results/classification/plots/classification_outcomes.pdf")
+plt.close()
+
+
+xplot = np.linspace(0,1,100)
+
+fig,ax = plt.subplots()
+
+fpr, tpr, thresholds = roc_curve(y_test,y_prob,pos_label=1)
+print(fpr,tpr)
+ax.plot(fpr,tpr, lw = 0.8,label = "gradient boosting model")
+ax.plot(xplot,xplot, ls = "dotted" ,lw = 0.8, color = "k",label = "random model")
+
+ax.set_xlabel("False pos. rate")
+ax.set_ylabel("True  pos. rate")
+
+fig.savefig("results/classification/plots/roc_curve.pdf")
 plt.close()

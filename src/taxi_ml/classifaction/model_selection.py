@@ -14,7 +14,7 @@ from sklearn.model_selection import cross_validate,StratifiedKFold
 
 from taxi_ml.common.preprocessing import build_preprocessor
 from taxi_ml.common.config import feature_set
-from models import models
+from taxi_ml.classifaction.models import models
 
 
 
@@ -65,7 +65,7 @@ for set_name,features in feature_set.items():
 
 
         end = time.perf_counter()
-        print(name,set_name,":", end - start, "seconds")
+       # print(name,set_name,":", end - start, "seconds")
 
 fig,ax = plt.subplots()
 
@@ -73,12 +73,11 @@ for metric in scoring:
     for name,config in models.items():        
         mean = validation_metrics["base_weekday_company"][name][metric]["mean"]
         std = validation_metrics["base_weekday_company"][name][metric]["std"]
-        ax.errorbar(mean,yerr = std,label = name)
+        ax.errorbar(x = name,y = mean,yerr = std,label = name)
 
 
-    fig.set_title(metric)
-    fig.savefile("results/classification/plots/"+metric+".pdf")
-    fig.close()
+    ax.set_title(metric)
+    fig.savefig("results/classification/plots/"+metric+".pdf")
 
 
 with open("results/classification/model_selection.json", "w") as f:

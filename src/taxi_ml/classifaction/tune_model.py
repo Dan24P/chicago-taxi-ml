@@ -12,7 +12,7 @@ from datetime import datetime
 
 from taxi_ml.common.preprocessing import build_preprocessor
 from taxi_ml.common.config import feature_set
-from models import models
+from taxi_ml.classifaction.models import models
 
 
 param_grid = {

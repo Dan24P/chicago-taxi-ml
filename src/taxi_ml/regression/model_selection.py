@@ -5,14 +5,14 @@ import json
 import time
 
 from sklearn.pipeline import Pipeline
-from taxi_ml.classifaction import prepare_data
+
 from sklearn.model_selection import cross_validate,KFold
 
 
 
 from taxi_ml.common.preprocessing import build_preprocessor
 from taxi_ml.common.config import feature_set
-from models import models
+from taxi_ml.regression.models import models
 scoring_metrics = ["MAE","r2"]
 
 

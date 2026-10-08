@@ -1,0 +1,19 @@
+{
+  "gradient_boosting": {
+    "train_length": 71419,
+    "feature_set": "base_company",
+    "id": "2026-09-22_14-41-39",
+    "CV_Folds": 5,
+    "best_index": 7,
+    "best_params": {
+      "model__min_samples_leaf": 5,
+      "model__max_leaf_nodes": 63,
+      "model__max_iter": 100,
+      "model__max_features": 0.75,
+      "model__learning_rate": 0.03,
+      "model__l2_regularization": 0.5
+    },
+    "best_CV_avg_prec": 0.912595097155366,
+    "best_CV_avg_prec_std": 0.0028019824784999044
+  }
+}
