@@ -1,7 +1,8 @@
 {
   "number of repeats": 30,
   "random state": 42,
-  "brier score ": 0.042033972469478875,
-  "brier score baseline": 0.16211930315659748,
-  "positive_rate": 0.20355321414560332
+  "brier score ": 0.040918104277662584,
+  "brier score baseline": 0.16023984,
+  "baseline_probability": 0.2004,
+  "positive_rate": 0.2004
 }

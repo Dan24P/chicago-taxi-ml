@@ -1,4 +1,15 @@
-*.csv
-*.db
+# Local Python environments
 .venv/
 venv/
+
+# Generated Python files and package metadata
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Local datasets and trained models
+/data/
+/models/
+
+# Old source archive
+/src.zip

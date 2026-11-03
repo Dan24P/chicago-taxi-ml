@@ -5,6 +5,6 @@ COPY requirments.txt .
 RUN pip install --no-cache-dir -r requirments.txt 
 
 COPY src/ src/
-COPY models/ models/
 
-CMD ["python","-m","taxi_ml.forecasting.predict"]
+COPY run_pipeline.py .
+CMD ["python","run_pipeline.py"]

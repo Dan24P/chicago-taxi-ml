@@ -1,5 +1,5 @@
 from sklearn.preprocessing import OneHotEncoder
-from taxi_ml.classifaction import prepare_data
+from taxi_ml.classification import prepare_data
 
 
 from sklearn.compose import ColumnTransformer

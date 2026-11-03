@@ -1,0 +1,21 @@
+
+x-pipeline: &pipeline
+  build: .
+  image: taxi-ml:local
+  volumes:
+    - ./data:/app/data
+    - ./models:/app/models
+    - ./results:/app/results
+  user: "1000:1000"
+  environment:
+    MPLCONFIGDIR: /tmp/matplotlib
+services:
+    classification:
+      <<: *pipeline
+      command: ["python","run_pipeline.py","--task","classification"]
+    forecasting:
+      <<: *pipeline
+      command: ["python","run_pipeline.py","--task","forecasting"]
+    regression:
+      <<: *pipeline
+      command: ["python","run_pipeline.py","--task","regression"]

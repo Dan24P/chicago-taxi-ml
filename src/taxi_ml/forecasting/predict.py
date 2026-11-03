@@ -1,5 +1,5 @@
 import joblib
-import pandas as pd 
+import pandas as pd
 from  taxi_ml.forecasting.config import feature_set
 
 
@@ -12,12 +12,13 @@ def main():
     data_test = pd.read_parquet("data/forecasting/test_data.parquet")
 
 
-    feature_list = feature_set[set_name]["numeric"]  + feature_set[set_name]["cat"] 
+    feature_list = feature_set[set_name]["numeric"]  + feature_set[set_name]["cat"]
     X_test = data_test[feature_list]
 
     y_pred = model.predict(X_test)
 
-    print(data_test[["timestamp", "trip_count"]].head(10))
+    data_test["prediction"] = y_pred
+    print(data_test[["timestamp", "trip_count", "prediction"]].head(10))
 
 if __name__ == "__main__":
     main()

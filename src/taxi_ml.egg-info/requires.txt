@@ -1,7 +1,0 @@
-pandas
-numpy
-duckdb
-scikit-learn
-joblib
-matplotlib
-pyarrow
