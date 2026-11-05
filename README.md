@@ -1,92 +1,189 @@
-# Chicago Taxi Machine Learning Project
+# Chicago Taxi Machine Learning
 
-This project explores a complete supervised machine-learning workflow using publicly available Chicago taxi trip data.
+Three machine-learning workflows using Chicago taxi trip records: predicting trip totals, identifying high-value trips, and forecasting hourly trip counts. The project combines SQL data preparation, scikit-learn pipelines, model comparison, hyperparameter tuning, evaluation, Docker, and automated CI checks.
 
-The project contains two related prediction tasks:
+## Prediction tasks
 
-- **Regression:** predict the total fare of a taxi trip.
-- **Classification:** estimate the probability that a trip has a high fare, defined as `trip_total >= $50`.
+| Task | Target | Evaluation approach |
+| --- | --- | --- |
+| Classification | Whether `trip_total >= $50` | Stratified 80/20 train/test split; five-fold stratified cross-validation on training data |
+| Regression | Trip total in dollars (`trip_total`) | 80/20 train/test split; five-fold shuffled cross-validation on training data |
+| Forecasting | Number of reported trips per hour | Chronological 70/15/15 train/validation/test split after creating lags; expanding-window cross-validation on training data |
 
-The main goal is not only to train predictive models, but to build a reproducible workflow covering data preparation, feature engineering, model comparison, cross-validation, hyperparameter tuning, final evaluation, and model interpretation.
+The trip-level models use actual trip duration and distance. They describe completed trips; they are not fare estimates based only on information available before pickup.
 
----
+## Methods
 
-## Dataset
+- **Data preparation:** DuckDB queries the trip database. Classification and regression exclude rows with non-positive or missing duration, distance, or trip total.
+- **Features:** duration, distance, sine/cosine encoding of hour, weekday, and taxi company. Four feature sets compare numerical features alone with additional categorical features.
+- **Preprocessing:** `ColumnTransformer` handles numerical features and one-hot encoding. Preprocessing sits inside each model's scikit-learn `Pipeline` so it is fitted separately within each cross-validation fold.
+- **Models:** linear/logistic regression, random forests, and histogram gradient boosting; classification also compares a decision tree.
+- **Tuning:** randomized search with 30 candidates and five cross-validation folds. Classification optimizes average precision; regression and forecasting optimize mean absolute error (MAE).
+- **Analysis:** classification includes threshold curves, ROC curves, permutation importance, calibration, and a Brier-score comparison against a constant probability estimated from the training set.
 
-The project uses publicly available taxi trip records from the City of Chicago.
+Forecasting aggregates records by hour and uses the previous 1–24 observations plus lags of 168, 336, and 504 observations, with optional hour and weekday features. It compares persistence baselines using the previous hour, day, and week. Evaluation uses observed historical counts as lag inputs; it does not implement recursive forecasts for a future period with no new observations.
 
-Each observation represents an individual taxi trip and includes information such as:
+## Data and initial setup
 
-- trip duration,
-- trip distance,
-- total fare,
-- trip start time,
-- taxi company.
+Source: City of Chicago [Taxi Trips (2013–2023)](https://data.cityofchicago.org/Transportation/Taxi-Trips-2013-2023-/wrvz-psew), also described in the [official Data.gov catalog](https://catalog.data.gov/dataset/taxi-trips-2013-2023). This project uses the 2023 records.
 
-The raw dataset contains several million observations. Data selection, cleaning, and transformation are performed using **DuckDB** before the data is passed to the machine-learning pipeline.
+Raw data and trained models are not included in Git. All commands below run from the repository root. Use Python 3.12, matching the Docker image and CI configuration.
 
-Dataset source: **TODO: add Chicago Data Portal link**
+### 1. Install the project
 
----
+On Linux/macOS:
 
-## Data Preparation and Feature Engineering
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[test]"
+```
 
-The raw data is queried and filtered using DuckDB.
+The `test` extra installs pytest alongside the project's dependencies.
 
-Trips with invalid or non-positive values for relevant variables such as fare, duration, and distance are removed.
+### 2. Prepare the database once
 
-The main numerical features are:
+In the data portal, filter `Trip Start Timestamp` to 2023 and export the records as CSV, retaining the original column names. Save the file as `data/Taxi_2023.csv`.
 
-- `trip_seconds`
-- `trip_miles`
-- `hour_sin`
-- `hour_cos`
+Import the CSV into `data/taxi.db` and apply the SQL transformation:
 
-The categorical features considered are:
+```bash
+python - <<'PY'
+from pathlib import Path
+import duckdb
 
-- `company`
-- `weekday`
+with duckdb.connect("data/taxi.db") as con:
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS raw_trips AS
+        SELECT * FROM read_csv(
+            'data/Taxi_2023.csv',
+            thousands=',',
+            types={'Trip Seconds': 'VARCHAR', 'Trip Total': 'VARCHAR'}
+        )
+    """)
+    con.execute(Path("sql/transform.sql").read_text())
+PY
+```
 
-### Cyclic encoding of time
+The explicit text types match the existing SQL's string-cleaning operations before it converts duration and trip total to numbers. The helper in `regression/import_data.py` currently relies on automatic CSV type inference and can need this adjustment for numeric exports.
 
-Hour of day is a cyclic variable. For example, 23:00 and 00:00 are close in time even though their numerical values are far apart.
+The resulting table contains `trip_id`, `trip_start`, `trip_miles`, `company`, `trip_total`, and `trip_seconds`. The pipelines expect this database to exist; the runner does not download or import data automatically. This initial data setup uses the local Python installation even if you later train through Docker.
 
-To represent this structure, hour is transformed using sine and cosine:
+The setup command keeps an existing `raw_trips` table. Replacing the CSV alone will not reload that table. An existing table must also have text columns for `Trip Seconds` and `Trip Total` to match the SQL transformation.
 
-\[
-hour_{\sin} =
-\sin\left(\frac{2\pi \cdot hour}{24}\right)
-\]
+## Run locally
 
-\[
-hour_{\cos} =
-\cos\left(\frac{2\pi \cdot hour}{24}\right)
-\]
+Start with a sample:
 
-Categorical variables are encoded using one-hot encoding.
+```bash
+python run_pipeline.py --task classification --data-mode sample --sample-size 10000
+python run_pipeline.py --task regression --data-mode sample --sample-size 10000
+python run_pipeline.py --task forecasting
+```
 
-Preprocessing is included directly inside a scikit-learn `Pipeline` using a `ColumnTransformer`. This ensures that preprocessing is performed independently within each cross-validation fold and avoids information leakage between training and validation data.
+Run classification or regression on all eligible trips:
 
----
+```bash
+python run_pipeline.py --task classification --data-mode full
+python run_pipeline.py --task regression --data-mode full
+```
 
-## Feature Sets
+| Option | Default | Behavior |
+| --- | --- | --- |
+| `--task` | `classification` | Selects classification, regression, or forecasting |
+| `--data-mode` | `sample` | Selects sampled or full data for classification/regression |
+| `--sample-size` | `100000` | Number of cleaned trips to sample; unused in full mode |
 
-Several feature configurations were compared:
+`DATA_MODE` and `SAMPLE_SIZE` environment variables can override the data defaults; explicit command-line options take precedence. Sampling uses DuckDB reservoir sampling with seed 42. Use enough rows to represent both classes and support five-fold cross-validation.
 
-- **base:** numerical features only
-- **base + weekday**
-- **base + company**
-- **base + weekday + company**
+Forecasting always aggregates all records in `trips`; the sample options do not affect it.
 
-This makes it possible to evaluate whether additional categorical information actually improves predictive performance.
+Each run executes **data preparation → model comparison → tuning → final evaluation**. Classification also runs **model analysis**. A failed stage stops the runner. Outputs use fixed paths and may be overwritten by later runs; tuning logs have timestamped filenames.
 
-The experiments showed that `company` provides useful additional information, while `weekday` contributes comparatively little.
+Sampling reduces the number of trips used for training, but still runs model comparison and tuning. Full mode loads the selected trip-level data into pandas and may exceed available memory. Docker does not remove that memory requirement.
 
----
+## Run with Docker Compose
 
-# Regression Task
+Install Docker Engine and Docker Compose, and complete the database setup above. Create the host directories before running containers:
 
-The regression task predicts:
+```bash
+mkdir -p data models results
+docker compose config --quiet
+docker compose build
+```
+
+The three services share one image, `taxi-ml:local`, and select different tasks:
+
+```bash
+docker compose run --rm classification
+docker compose run --rm regression
+docker compose run --rm forecasting
+```
+
+To change the data settings without editing Compose:
+
+```bash
+docker compose run --rm -e DATA_MODE=sample -e SAMPLE_SIZE=10000 classification
+docker compose run --rm -e DATA_MODE=full regression
+```
+
+The `data/`, `models/`, and `results/` directories are bind-mounted into `/app`, so generated files remain on your computer when the container is removed. Rebuild the image after changing Python source or dependencies.
+
+The current Compose configuration runs containers as UID/GID `1000:1000`. If your user has different IDs (`id -u` and `id -g`), adjust the shared `user` setting so the container can write to these directories. `MPLCONFIGDIR=/tmp/matplotlib` gives Matplotlib a writable cache directory.
+
+If your Docker installation requires administrator access, prefix the Docker commands with `sudo`.
+
+## Saved results
+
+The checked-in evaluation files currently contain:
+
+| Task | Evaluated model | Saved test metrics | Source |
+| --- | --- | --- | --- |
+| Classification | Histogram gradient boosting, numerical features + company | ROC AUC **0.9783**, average precision **0.9235**, F1 **0.8728** | [Evaluation JSON](results/classification/final_evaluation.json) |
+| Regression | Random forest, numerical features + weekday + company | MAE **$4.39**, R² **0.6861** | [Evaluation JSON](results/regression/final_evaluation.json) |
+| Forecasting | Histogram gradient boosting, lags + hour + weekday | MAE **53.26 trips/hour**, R² **0.9730** | [Evaluation JSON](results/forecasting/final_evaluation.json) |
+
+These files are snapshots of previous experiments. They do not record the exact data export, sample configuration, or dependency versions, so the numbers are not a guarantee for a fresh run. Final model and feature choices are currently specified in each task's tuning/evaluation scripts rather than selected automatically from the comparison results.
+
+## Tests and CI
+
+Run the tests locally:
+
+```bash
+python -m pytest -q
+```
+
+The current tests cover classification data preparation: sample size, full-data mode, and filtering invalid trips. Each test creates a small temporary DuckDB database; it does not need the real taxi dataset or modify your local database.
+
+The [GitHub Actions workflow](.github/workflows/ci.yml) runs on pushes and pull requests. It installs the project with test dependencies, runs pytest, builds the Docker image, and starts the container with `python run_pipeline.py --help`.
+
+The container check verifies runner startup and argument parsing. CI does not train models, evaluate the full dataset, publish an image, or deploy a service.
+
+## Repository layout
 
 ```text
-trip_total
+.github/workflows/ci.yml     Automated tests and Docker checks
+src/taxi_ml/
+  common/                   Shared trip features and preprocessing
+  classification/           High-trip-total classification and analysis
+  regression/               Trip-total prediction and shared CSV importer
+  forecasting/              Hourly trip-count forecasting
+sql/transform.sql           Raw-to-modeling table transformation
+test/test_prepare_data.py   Tests using temporary synthetic data
+run_pipeline.py             Pipeline command-line runner
+Dockerfile                  Shared training image
+compose.yaml                Task services and persistent output mounts
+data/                       Local CSV, DuckDB database, prepared Parquet files
+models/                     Generated trained pipelines (.joblib)
+results/                    Evaluation JSON, tuning logs, and generated plots
+```
+
+`data/`, `models/`, and PDF files are ignored by Git. Selected JSON results are tracked. The Docker dependency file is currently named `requirments.txt`; local installation uses `pyproject.toml`.
+
+## Current limitations and next improvements
+
+- Classification and regression use random splits; a chronological holdout would better assess performance on future trips.
+- Forecasting uses row-based shifts without explicitly filling missing hours or resolving daylight-saving transitions. A lag of 24 rows is not guaranteed to represent exactly 24 elapsed hours.
+- Tests currently cover classification preparation only. Regression, forecasting, and model behavior need additional coverage.
+- Dependency versions and data exports are not pinned. Recording these alongside the sample settings and model results would improve reproducibility.
+- Full-data training needs further memory optimization before it can be treated as a supported workflow on small machines.
