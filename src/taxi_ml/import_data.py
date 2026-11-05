@@ -15,6 +15,9 @@ def main():
             thousands=','
         );
     """)
+    project_root = Path(__file__).resolve().parents[2]
+    text = (project_root / "sql" / "transform.sql").read_text()
+    con.execute(text)
     con.close()
 
 

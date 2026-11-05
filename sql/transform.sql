@@ -5,11 +5,11 @@ SELECT
     "Trip Miles" AS trip_miles,
     "Company" AS company,
     TRY_CAST(
-        REPLACE(REPLACE("Trip Total", '$', ''), ',', '')
+        REPLACE(REPLACE(CAST("Trip Total" AS VARCHAR), '$', ''), ',', '')
         AS DOUBLE
     ) AS trip_total,
     TRY_CAST(
-                REPLACE(REPLACE("Trip seconds", '$', ''), ',', '')
+                REPLACE(REPLACE(CAST("Trip seconds" AS VARCHAR), '$', ''), ',', '')
                 AS DOUBLE
             ) AS trip_seconds
 FROM raw_trips;
