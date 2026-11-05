@@ -11,5 +11,8 @@ __pycache__/
 /data/
 /models/
 
+# Generated PDF plots
+*.pdf
+
 # Old source archive
 /src.zip
