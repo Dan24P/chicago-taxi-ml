@@ -1,8 +1,8 @@
 FROM python:3.12-slim
 WORKDIR /app
 ENV PYTHONPATH=/app/src
-COPY requirments.txt .
-RUN pip install --no-cache-dir -r requirments.txt 
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt 
 
 COPY src/ src/
 COPY sql/ sql/

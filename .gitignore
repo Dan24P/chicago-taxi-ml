@@ -14,5 +14,12 @@ __pycache__/
 # Generated PDF plots
 *.pdf
 
+# Generated experiment JSON, except selected portfolio reports
+/results/**/*.json
+!/results/*/final_evaluation.json
+!/results/*/model_selection.json
+!/results/classification/brier_score.json
+!/results/classification/Importance.json
+
 # Old source archive
 /src.zip

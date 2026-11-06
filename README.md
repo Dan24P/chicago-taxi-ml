@@ -27,7 +27,7 @@ Forecasting aggregates records by hour and uses the previous 1–24 observations
 
 Source: City of Chicago [Taxi Trips (2013–2023)](https://data.cityofchicago.org/Transportation/Taxi-Trips-2013-2023-/wrvz-psew), also described in the [official Data.gov catalog](https://catalog.data.gov/dataset/taxi-trips-2013-2023). This project uses the 2023 records.
 
-Raw data and trained models are not included in Git. All commands below run from the repository root. Use Python 3.12, matching the Docker image and CI configuration.
+Raw data and trained models are not included in Git. All commands below run from the repository root. For local execution, use Python 3.12, matching the Docker image and CI configuration. Alternatively, follow the Docker Compose instructions below without installing Python dependencies on your host.
 
 ### 1. Install the project
 
@@ -43,33 +43,19 @@ The `test` extra installs pytest alongside the project's dependencies.
 
 ### 2. Prepare the database once
 
-In the data portal, filter `Trip Start Timestamp` to 2023 and export the records as CSV, retaining the original column names. Save the file as `data/Taxi_2023.csv`.
+In the data portal, filter `Trip Start Timestamp` to 2023 and export the records as CSV, retaining the original column names. Create a `data/` directory and save the file as `data/Taxi_2023.csv`.
 
 Import the CSV into `data/taxi.db` and apply the SQL transformation:
 
 ```bash
-python - <<'PY'
-from pathlib import Path
-import duckdb
-
-with duckdb.connect("data/taxi.db") as con:
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS raw_trips AS
-        SELECT * FROM read_csv(
-            'data/Taxi_2023.csv',
-            thousands=',',
-            types={'Trip Seconds': 'VARCHAR', 'Trip Total': 'VARCHAR'}
-        )
-    """)
-    con.execute(Path("sql/transform.sql").read_text())
-PY
+python -m taxi_ml.import_data
 ```
 
-The explicit text types match the existing SQL's string-cleaning operations before it converts duration and trip total to numbers. The helper in `regression/import_data.py` currently relies on automatic CSV type inference and can need this adjustment for numeric exports.
+This shared importer creates `raw_trips`, then executes `sql/transform.sql` to create `trips`. The transformation renames columns and cleans duration and trip-total values before converting them to numbers. It accepts numeric or text inputs for these two fields by casting them to text before string cleaning.
 
-The resulting table contains `trip_id`, `trip_start`, `trip_miles`, `company`, `trip_total`, and `trip_seconds`. The pipelines expect this database to exist; the runner does not download or import data automatically. This initial data setup uses the local Python installation even if you later train through Docker.
+The resulting table contains `trip_id`, `trip_start`, `trip_miles`, `company`, `trip_total`, and `trip_seconds`. All three tasks use this database. The pipeline runner does not download or import data automatically. To import through Docker instead, use the command in the Docker section below.
 
-The setup command keeps an existing `raw_trips` table. Replacing the CSV alone will not reload that table. An existing table must also have text columns for `Trip Seconds` and `Trip Total` to match the SQL transformation.
+Rerunning the importer keeps an existing `raw_trips` table and recreates `trips` from it. Replacing the CSV alone will not refresh the stored raw data; reloading a different export is currently a manual database-management step.
 
 ## Run locally
 
@@ -104,13 +90,21 @@ Sampling reduces the number of trips used for training, but still runs model com
 
 ## Run with Docker Compose
 
-Install Docker Engine and Docker Compose, and complete the database setup above. Create the host directories before running containers:
+Install Docker Engine and Docker Compose, and save the exported CSV as `data/Taxi_2023.csv`, as described above. Create the host directories before running containers:
 
 ```bash
 mkdir -p data models results
 docker compose config --quiet
 docker compose build
 ```
+
+If you have not already prepared the database locally, run the shared importer inside the container:
+
+```bash
+docker compose run --rm classification python -m taxi_ml.import_data
+```
+
+Here, `classification` supplies the shared image and volume mounts; the explicit Python command replaces its normal training command. The import prepares the database for all three tasks. The image includes the SQL transformation file, and the CSV and generated database stay in the mounted `data/` directory.
 
 The three services share one image, `taxi-ml:local`, and select different tasks:
 
@@ -127,7 +121,7 @@ docker compose run --rm -e DATA_MODE=sample -e SAMPLE_SIZE=10000 classification
 docker compose run --rm -e DATA_MODE=full regression
 ```
 
-The `data/`, `models/`, and `results/` directories are bind-mounted into `/app`, so generated files remain on your computer when the container is removed. Rebuild the image after changing Python source or dependencies.
+The `data/`, `models/`, and `results/` directories are bind-mounted into `/app`, so generated files remain on your computer when the container is removed. Rebuild the image after changing Python source, SQL transformations, or dependencies.
 
 The current Compose configuration runs containers as UID/GID `1000:1000`. If your user has different IDs (`id -u` and `id -g`), adjust the shared `user` setting so the container can write to these directories. `MPLCONFIGDIR=/tmp/matplotlib` gives Matplotlib a writable cache directory.
 
@@ -153,7 +147,12 @@ Run the tests locally:
 python -m pytest -q
 ```
 
-The current tests cover classification data preparation: sample size, full-data mode, and filtering invalid trips. Each test creates a small temporary DuckDB database; it does not need the real taxi dataset or modify your local database.
+The current tests cover:
+
+- **Shared import:** importing a tiny CSV into `raw_trips`, applying the SQL transformation, and checking the resulting `trips` values.
+- **Classification preparation:** sample size, full-data mode, and filtering invalid trips.
+
+Tests use temporary CSV/database files; they do not need the real taxi dataset or modify your local database.
 
 The [GitHub Actions workflow](.github/workflows/ci.yml) runs on pushes and pull requests. It installs the project with test dependencies, runs pytest, builds the Docker image, and starts the container with `python run_pipeline.py --help`.
 
@@ -164,12 +163,15 @@ The container check verifies runner startup and argument parsing. CI does not tr
 ```text
 .github/workflows/ci.yml     Automated tests and Docker checks
 src/taxi_ml/
+  import_data.py            Shared CSV import and SQL transformation
   common/                   Shared trip features and preprocessing
   classification/           High-trip-total classification and analysis
-  regression/               Trip-total prediction and shared CSV importer
+  regression/               Trip-total prediction
   forecasting/              Hourly trip-count forecasting
 sql/transform.sql           Raw-to-modeling table transformation
-test/test_prepare_data.py   Tests using temporary synthetic data
+test/
+  test_import_data.py       CSV import and transformation test
+  test_prepare_data.py      Classification preparation tests
 run_pipeline.py             Pipeline command-line runner
 Dockerfile                  Shared training image
 compose.yaml                Task services and persistent output mounts
@@ -178,12 +180,12 @@ models/                     Generated trained pipelines (.joblib)
 results/                    Evaluation JSON, tuning logs, and generated plots
 ```
 
-`data/`, `models/`, and PDF files are ignored by Git. Selected JSON results are tracked. The Docker dependency file is currently named `requirments.txt`; local installation uses `pyproject.toml`.
+`data/`, `models/`, PDF files, and routine experiment JSON outputs are ignored by Git. The tracked reports are each task's `final_evaluation.json` and `model_selection.json`, plus classification's `brier_score.json` and `Importance.json`. Timestamped tuning logs and older regression outputs remain local.
 
 ## Current limitations and next improvements
 
 - Classification and regression use random splits; a chronological holdout would better assess performance on future trips.
 - Forecasting uses row-based shifts without explicitly filling missing hours or resolving daylight-saving transitions. A lag of 24 rows is not guaranteed to represent exactly 24 elapsed hours.
-- Tests currently cover classification preparation only. Regression, forecasting, and model behavior need additional coverage.
+- Tests currently cover shared import and classification preparation. Regression, forecasting, and model behavior need additional coverage.
 - Dependency versions and data exports are not pinned. Recording these alongside the sample settings and model results would improve reproducibility.
 - Full-data training needs further memory optimization before it can be treated as a supported workflow on small machines.
